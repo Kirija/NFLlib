@@ -33,7 +33,7 @@ foreach(CONFIG ${CONFIGS})
 
     endforeach()
 
-    foreach(OP nfl_add nfl_sub nfl_mul nfl_eq nfl_neq nfl_stream poly_p poly_set poly_mpz poly_serialize_manually)
+    foreach(OP nfl_add nfl_sub nfl_mul nfl_eq nfl_neq nfl_stream poly_p poly_set poly_mpz poly_serialize_manually bug_mok)
 
         file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${OP}${CONFIG_ID}.cpp"
             "#define CONFIG ${CONFIG}\n#include \"${CMAKE_CURRENT_SOURCE_DIR}/${OP}.cpp\"\n")
