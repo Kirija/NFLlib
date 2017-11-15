@@ -4,8 +4,8 @@
 #include "nfl/prng/FastGaussianNoise.hpp"
 #include <nfl/poly_p.hpp>
 #include "tools.h"
-#define SIGMA 5
-#define Berr 5*80/2 // From XPIR 5*security_bits/2;
+#define SIGMA 4
+#define Berr 1 // From XPIR 5*security_bits/2;
 #define A_bits 17	// AbsBitPerCipher / polyDegree
 const uint64_t bitmask = (1ULL << A_bits)-1; 	
 #define Gauss nfl::gaussian<T_clear, T_cipher, 2>
@@ -21,49 +21,6 @@ static void plonge(P& out, Q& in) {
 		}
 	}
 }
-
-
-// template <class P>
-// __attribute__((noinline)) static void encrypt(P& a, P& b, P const & message, uint64_t pt_modulus, P const & pka, P const & pkb, P const & pkaprime, P const & pkbprime, nfl::FastGaussianNoise<uint16_t, typename P::value_type, 2> *g_prng)
-// {
-// 	// u
-// 	P e1 = nfl::gaussian<uint16_t, uint64_t, 2>(g_prng);
-// 	e1.ntt_pow_phi();
-//
-// 	// p*e_1
-// 	P e2 = nfl::gaussian<uint16_t, uint64_t, 2>(g_prng, pt_modulus);
-// 	e2.ntt_pow_phi();
-//
-// 	// p*e_2
-// 	P e3 = nfl::gaussian<uint16_t, uint64_t, 2>(g_prng, pt_modulus);
-// 	e3 = e3 + message;
-// 	e3.ntt_pow_phi();
-//
-// 	// encCset_a = pka * u + p*e_2
-// 	a = e1 * pka + e2 ;
-//
-// 	// encCset_b = pkb * u + p*e_3 + message
-// 	b = e1 * pkb + e3;
-// }
-// // template <class P>
-// // __attribute__((noinline)) static void decrypt(P& tmp, P const & resa, P const& resb, P const& s, P const& sprime, typename P::value_type const modulus, uint64_t const pt_modulus)
-// //
-// template <class P>
-// 	__attribute__((noinline)) static void decrypt(P& tmp, P const & a, P const& b, P const& s, P const& sprime, typename P::value_type const modulus, uint64_t const pt_modulus)
-// 	{
-// 		uint64_t modulusBitSize=params<P>::kModulusBitsize;
-// 		tmp = b -  nfl::shoup(a * s, sprime);
-//
-// 		tmp.invntt_pow_invphi();
-//
-// 		uint64_t const adder=(uint64_t)(((1ULL<<modulusBitSize+1)/pt_modulus)*pt_modulus-modulus);
-//
-// 		for(auto & v : tmp)
-// 		{
-// 			v= (v<modulus/2) ? v%pt_modulus : (v + adder)%pt_modulus;
-// 		}
-//
-// 	}
 
 template <class P>
 __attribute__((noinline)) static void encryptNFL(P& a, P& b, P const & message, P const & s, P const & sprime, nfl::FastGaussianNoise<uint16_t, typename P::value_type, 2> *g_prng)
