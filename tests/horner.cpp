@@ -1,4 +1,4 @@
-#define CONFIG 1024, 16, uint16_t, 62, uint64_t
+#define CONFIG 512, 16, uint16_t, 62, uint64_t
 
 #include <iostream>
 #include "nfl/prng/FastGaussianNoise.hpp"
@@ -8,7 +8,6 @@
 #define Berr 1 // From XPIR 5*security_bits/2;
 #define A_bits 17	// AbsBitPerCipher / polyDegree
 const uint64_t bitmask = (1ULL << A_bits)-1; 	
-#define Gauss nfl::gaussian<T_clear, T_cipher, 2>
 
 typedef  nfl::poly_from_modulus<uint64_t, 512, 62> poly;
 typedef  nfl::poly_from_modulus<uint16_t, 512, 16> clearpoly;
@@ -74,6 +73,17 @@ template <class P>
 		s.ntt_pow_phi();
 		sprime = nfl::compute_shoup(s);
 	}
+	
+template <class P, class Q>
+	__attribute__((noinline)) static void computeNoise(P& ciph, Q& clear)
+	{
+		double nbsum=ciph.degree;
+		double p_size=ciph.aggregated_modulus_bit_size;
+		double nbmul=ciph.degree;
+		double nbr_bits=floor(( (p_size - 1) - log2(nbsum) - log2(Berr) -log2(nbmul)) / 2.0);
+		std::cout << "Berr " << Berr << " nbsums "<<nbsum<< " p_size "<<p_size<<" nmul "<< nbmul << " nbr_bits " << nbr_bits<<std::endl;
+		std::cout << "Modulus (ciph/clear) : " << ciph.get_modulus(0)<< " / " << clear.get_modulus(0)<<std::endl;
+	}
 
 template <size_t degree, size_t modulus_clear, class T_clear, size_t modulus_cipher, class T_cipher>
 bool run() {
@@ -95,32 +105,28 @@ bool run() {
 	clearpoly result;
 	poly ca, cb, da, db, ea, eb, res;
 	
-	double nbsum=p.degree;
-	double p_size=62;
-	double nbmul=p.degree;
-	double nbr_bits=floor(( (p_size - 1) - log2(nbsum) - log2(Berr) -log2(nbmul)) / 2.0);
-	std::cout << "Berr " << Berr << " nbsums "<<nbsum<< " p_size "<<p_size<<" nmul "<< nbmul << " nbr_bits " << nbr_bits<<std::endl;
-	std::cout << "Modulus " << p.get_modulus(0)<<std::endl;
-
 	// This step generates a secret key
 	nfl::FastGaussianNoise<T_clear, T_cipher, 2> g_prng(SIGMA, 128, 1<<10);
 	keyGenNFL(s,sprime,&g_prng);
+	computeNoise(s, p);
 	
 	// Test enc/dec result=Dec(Enc(p));
     encryptNFL(ca, cb, p, s, sprime, &g_prng);
     decryptNFL(result, ca, cb, s, sprime);
-	std::cout << "p2" << p << std::endl;
-	std::cout << "sym dec(enc(p)=" << result << std::endl;
+	bool testEncDec = true; for (int i=0;i<degree-1;i++) testEncDec &= (result(0,i)==p(0,i));
+	std::cout << "Test dec(enc(p))==p : " << ((testEncDec) ? " OK" : " KO") << std::endl;
 	
 	// Test HFE add result=Dec(Enc(p)+Enc(p))
     encryptNFL(ca, cb, p, s, sprime, &g_prng);
 	ea = ca + ca ; eb = cb + cb;
     decryptNFL(result, ea, eb, s, sprime);
-	std::cout << "dec(enc(p2+p2)=" << result << std::endl;
+	bool testFHEAdd = true; for (int i=0;i<degree-1;i++) testFHEAdd &= (result(0,i)==p(0,i)*2);
+	std::cout << "Test dec(enc(p)enc(p)) : " << ((testFHEAdd) ? " OK" : " KO") << std::endl;
 	
 	// Test HFE mul
     encryptNFL(ca, cb, p, s, sprime, &g_prng);
-	ea = ca * ca ; 
+	// for (int i=0;i<degree-1;i++) {ea(0,i)=ca(0,i)*ca(0,i);eb(0,i)=cb(0,i)*cb(0,i);}
+	ea = ca * ca ;
 	eb = cb * cb;
     decryptNFL(result, ea, eb, s, sprime);
 	std::cout << "dec(enc(p2*p2)=" << result << std::endl;
