@@ -96,7 +96,7 @@ template <class P, class Q>
 template <size_t degree, size_t modulus_clear, class T_clear, size_t modulus_cipher, class T_cipher>
 bool run() {
 
-	clearpoly p{1,2,3};
+	clearpoly p{1,2,3},p2;
 	T_clear x0=3, px0;
 	
 	// On cherche à évaluer p en x0 soit p(x0)
@@ -118,30 +118,48 @@ bool run() {
 	keyGenNFL(s,sprime,&g_prng);
 	computeNoise(s, p);
 	
+#define REPET 1
 	// Test enc/dec result=Dec(Enc(p));
-    encryptNFL(ca, cb, p, s, sprime, &g_prng);
-    decryptNFL(result, ca, cb, s, sprime);
-	bool testEncDec = true; for (int i=0;i<degree-1;i++) testEncDec &= (result(0,i)==p(0,i));
+	bool testEncDec = true; 
+	for(int i=0;i<REPET;i++) {
+		encryptNFL(ca, cb, p, s, sprime, &g_prng);
+		decryptNFL(result, ca, cb, s, sprime);
+		for (int i=0;i<degree-1;i++) testEncDec &= (result(0,i)==p(0,i));
+	}
 	std::cout << "Test dec(enc(p))==p : " << ((testEncDec) ? " OK" : " KO") << std::endl;
-	
+
 	// Test HFE add result=Dec(Enc(p)+Enc(p))
-    encryptNFL(ca, cb, p, s, sprime, &g_prng);
-	ea = ca + ca ; eb = cb + cb;
-    decryptNFL(result, ea, eb, s, sprime);
-	bool testFHEAdd = true; for (int i=0;i<degree-1;i++) testFHEAdd &= (result(0,i)==p(0,i)*2);
+	bool testFHEAdd = true; 
+	for(int i=0;i<REPET;i++) {
+		encryptNFL(ca, cb, p, s, sprime, &g_prng);
+		ea = ca + ca ; eb = cb + cb;
+		decryptNFL(result, ea, eb, s, sprime);
+		for (int i=0;i<degree-1;i++) testFHEAdd &= (result(0,i)==p(0,i)*2);
+	}
 	std::cout << "Test dec(enc(p)enc(p)) : " << ((testFHEAdd) ? " OK" : " KO") << std::endl;
 	
-	// Test HFE mul
-	p={1,2,3};//p.ntt_pow_phi();
-    encryptNFL(ca, cb, p, s, sprime, &g_prng);
-	 for (int i=0;i<degree-1;i++) {ea(0,i)=ca(0,i)*ca(0,i);eb(0,i)=cb(0,i)*cb(0,i);}
-	// ea = ca * ca ;
-	// eb = cb * cb;
+	// Test HFE mul *1
+	p2={1};
+    encryptNFL(da, db, p2, s, sprime, &g_prng);
+	for (int i=0;i<degree-1;i++) {ea(0,i)=ca(0,i)*da(0,i);eb(0,i)=cb(0,i)*db(0,i);}
+	//ea = ca * ca ;
+	//eb = cb * cb;
     decryptNFL(result, ea, eb, s, sprime);
-	std::cout << "dec(enc(p2*p2)=" << result << std::endl;
+	std::cout << "dec(enc(p*1)=" << result << std::endl;
+	bool testFHEMul1 = true; for (int i=0;i<degree-1;i++) testFHEMul1 &= (result(0,i)==p(0,i));
+	std::cout << "Test MUL1 : " << ((testFHEMul1) ? " OK" : " KO") << std::endl;
+	
+	// Test HFE mul **2
+	p2={1,2,3};
+    encryptNFL(da, db, p2, s, sprime, &g_prng);
+	for (int i=0;i<degree-1;i++) {ea(0,i)=ca(0,i)*da(0,i);eb(0,i)=cb(0,i)*db(0,i);}
+	//ea = ca * ca ;
+	//eb = cb * cb;
+    decryptNFL(result, ea, eb, s, sprime);
+	//std::cout << "dec(enc(p2*p2)=" << result << std::endl;
 	clearpoly real_p2{1,4,10,12,9};
-	bool testFHEMul = true; for (int i=0;i<degree-1;i++) testFHEMul &= (result(0,i)==real_p2(0,i));
-	std::cout << "Test dec(enc(p))==p : " << ((testFHEMul) ? " OK" : " KO") << std::endl;
+	bool testFHEMul2 = true; for (int i=0;i<degree-1;i++) testFHEMul2 &= (result(0,i)==real_p2(0,i));
+	std::cout << "Test MUL2 : " << ((testFHEMul2) ? " OK" : " KO") << std::endl;
 	
 	//
 	// uint64_t px0=3,accumul=1;
