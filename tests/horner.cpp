@@ -1,16 +1,19 @@
-#define CONFIG 1024, 16, uint16_t, 62, uint64_t
+#define CONFIG 16, 16, uint16_t, 62, uint64_t
 
 #include <iostream>
 #include "nfl/prng/FastGaussianNoise.hpp"
 #include <nfl/poly_p.hpp>
 #include "tools.h"
+#include <bitset>
+
 #define SIGMA 4
-#define Berr 1 // From XPIR 5*security_bits/2;
+#define Berr 200 // From XPIR 5*security_bits/2;
 #define A_bits 17	// AbsBitPerCipher / polyDegree
 const uint64_t bitmask = (1ULL << A_bits)-1; 	
+const uint64_t antibitmask = 0x7FFFFFFFFFFFFFFF - bitmask ; 	
 
-typedef  nfl::poly_from_modulus<uint64_t, 1024, 62> poly;
-typedef  nfl::poly_from_modulus<uint16_t, 1024, 16> clearpoly;
+typedef  nfl::poly_from_modulus<uint64_t, 16, 62> poly;
+typedef  nfl::poly_from_modulus<uint16_t, 16, 16> clearpoly;
 
 template <class P, class Q>
 static void plonge(P& out, Q& in) {
@@ -24,15 +27,42 @@ static void plonge(P& out, Q& in) {
 template <class P>
 __attribute__((noinline)) static void encryptNFL(P& a, P& b, P const & message, P const & s, P const & sprime, nfl::FastGaussianNoise<uint16_t, typename P::value_type, 2> *g_prng)
 {
-	//   b = (a*s) % f + e * A + m;
-	// uint64_t amplifier = (1ULL << A_bits);
-	b = nfl::non_uniform(Berr, A_bits );
-	//for (auto & v : b) v = v << (A_bits) ;
-	//b = b + message;
-	//for (auto & v : b) if(v > b.get_modulus(0)) v = v - b.get_modulus(0);
+	//   b = a.s + e.Amp + m;
+	P e = nfl::non_uniform(2*Berr-1);
+	for(auto & v : e) {
+		// std::cout << "1:" << std::bitset<64> (v) <<std::endl;
+		// std::cout << "2:" << std::bitset<64> (v  << A_bits)<<std::endl;
+		// std::cout << "3:" << std::bitset<64> ((a.get_modulus(0)))<<std::endl;
+		// std::cout << "4:" << std::bitset<64> (((Berr-1)<<A_bits))<<std::endl;
+		// std::cout << "5:" << std::bitset<64> ((a.get_modulus(0)-((Berr-1)<<A_bits)))<<std::endl;
+		// std::cout << "6:" << std::bitset<64> ((v  << A_bits) + (a.get_modulus(0)-((Berr-1)<<A_bits)))<<std::endl;
+		v = ((v  << A_bits) );//+ (a.get_modulus(0)-((Berr-1)<<A_bits)));
+		if(v>a.get_modulus(0)) {
+			//std::cout << "BIGV v=" << std::hex << v << " > modulus "<<std::hex << a.get_modulus(0)<<" so v=v-a.get_modulus(0)="<<std::hex << a.get_modulus(0)-v<<std::endl;
+			v=a.get_modulus(0)-v;
+		}
+	}
+	//std::cout << " e=nfl::non_uniform( Berr=" << Berr <<" , Abits="<< A_bits<<") = "<< std::endl<<e<<std::endl;
 	//b.ntt_pow_phi();
-	a = nfl::uniform();	
-	b = nfl::shoup(a * s, sprime) + b + message;
+	//a = nfl::uniform();	
+	// std::cout << " a=nfl::uniform() = "<< std::endl<<a<<std::endl;
+// 	b = nfl::shoup(a * s, sprime);
+// 	std::cout << " s = "<< std::endl<<s<<std::endl;
+// 	std::cout << " a*s = "<< std::endl<<b<<std::endl;
+// 	b = nfl::shoup(a * s, sprime) + e ;
+// 	std::cout << " a*s +e = "<< std::endl<<b<<std::endl;
+	b = nfl::shoup(a * s, sprime) + e + message;
+	// std::cout << " msg = "<< std::endl<<message<<std::endl;
+	// std::cout << " a*s +e +msg= "<< std::endl<<b<<std::endl;
+	
+	//P tmp = nfl::shoup(a * s, sprime);
+	// std::cout << " a*s = "<< std::endl<<tmp<<std::endl;
+	//tmp = b - tmp;
+	// std::cout << " b - a*s = "<< std::endl<<tmp<<std::endl;
+	//for(auto & v : tmp) v = v & bitmask;
+	// std::cout << " (b - a*s) & bitmask = "<< std::endl<<tmp<<std::endl;
+	
+	
 }
 
 template <class P, class Q>
@@ -46,13 +76,15 @@ __attribute__((noinline)) static void encryptNFL(P& a, P& b, Q const & message, 
 template <class P>
 	__attribute__((noinline)) static void decryptNFL(P& tmp, P const & a, P const& b, P const& s, P const& sprime)
 	{
-		const uint64_t magicConst = (1ULL<<(s.nbits+1))-a.get_modulus(0);
-		tmp = b - nfl::shoup(a * s, sprime);
+		// m = b - a.s -e.Amp
+		// const uint64_t magicConst = (1ULL<<(s.nbits+1))-a.get_modulus(0);
+		tmp = (b - nfl::shoup(a * s, sprime));// % a.get_modulus(0);
 		//tmp.invntt_pow_invphi();
 		for(auto & v : tmp)
 		{
 			//v = (v>a.get_modulus(0)/2) ? ((v + magicConst) & bitmask) : (v & bitmask);
-			v = (v % a.get_modulus(0))& bitmask;
+//			v = v % a.get_modulus(0);
+			v = v & bitmask;
 		}
 	}
 	
@@ -82,6 +114,7 @@ template <class P, class Q>
 		double nbr_bits=floor(( (p_size - 1) - log2(nbsum) - log2(Berr) -log2(nbmul)) / 2.0);
 		std::cout << "Berr " << Berr << " nbsums "<<nbsum<< " p_size "<<p_size<<" nmul "<< nbmul << " nbr_bits " << nbr_bits<<std::endl;
 		std::cout << "Modulus (ciph/clear) : " << ciph.get_modulus(0)<< " / " << clear.get_modulus(0)<<std::endl;
+		std::cout << "Bitmasks (plain/anti) : " << bitmask<< " / " << antibitmask <<std::endl;
 	}
 
 template <size_t degree, size_t modulus_clear, class T_clear, size_t modulus_cipher, class T_cipher>
