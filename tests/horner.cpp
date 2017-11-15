@@ -29,8 +29,8 @@ __attribute__((noinline)) static void encryptNFL(P& a, P& b, P const & message, 
 	b = nfl::non_uniform(Berr);
 	// Adjustments and addition to plaintext
 	for(int i=0;i<b.degree;i++) {
-		b(0,i) = (( b(0,i) << (A_bits+1) ) + message(0,i))%b.get_modulus(0);
-		//if(b(0,i)>b.get_modulus(0)) b(0,i)-=b.get_modulus(0);
+		b(0,i) = (( b(0,i) << (A_bits+1) ) + message(0,i));
+		if(b(0,i)>b.get_modulus(0)) b(0,i)-=b.get_modulus(0);
 	}	
 	b.ntt_pow_phi();
 	a = nfl::uniform();	
