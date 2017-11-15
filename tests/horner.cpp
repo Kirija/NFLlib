@@ -1,4 +1,4 @@
-#define CONFIG 16, 16, uint16_t, 62, uint64_t
+#define CONFIG 1024, 16, uint16_t, 62, uint64_t
 
 #include <iostream>
 #include "nfl/prng/FastGaussianNoise.hpp"
@@ -8,12 +8,12 @@
 
 #define SIGMA 4
 #define Berr 200 // From XPIR 5*security_bits/2;
-#define A_bits 17	// AbsBitPerCipher / polyDegree
+#define A_bits 16	// AbsBitPerCipher / polyDegree
 const uint64_t bitmask = (1ULL << A_bits)-1; 	
 const uint64_t antibitmask = 0x7FFFFFFFFFFFFFFF - bitmask ; 	
 
-typedef  nfl::poly_from_modulus<uint64_t, 16, 62> poly;
-typedef  nfl::poly_from_modulus<uint16_t, 16, 16> clearpoly;
+typedef  nfl::poly_from_modulus<uint64_t, 1024, 62> poly;
+typedef  nfl::poly_from_modulus<uint16_t, 1024, 16> clearpoly;
 
 template <class P, class Q>
 static void plonge(P& out, Q& in) {
@@ -28,41 +28,15 @@ template <class P>
 __attribute__((noinline)) static void encryptNFL(P& a, P& b, P const & message, P const & s, P const & sprime, nfl::FastGaussianNoise<uint16_t, typename P::value_type, 2> *g_prng)
 {
 	//   b = a.s + e.Amp + m;
+	a=nfl::uniform();
 	P e = nfl::non_uniform(2*Berr-1);
 	for(auto & v : e) {
-		// std::cout << "1:" << std::bitset<64> (v) <<std::endl;
-		// std::cout << "2:" << std::bitset<64> (v  << A_bits)<<std::endl;
-		// std::cout << "3:" << std::bitset<64> ((a.get_modulus(0)))<<std::endl;
-		// std::cout << "4:" << std::bitset<64> (((Berr-1)<<A_bits))<<std::endl;
-		// std::cout << "5:" << std::bitset<64> ((a.get_modulus(0)-((Berr-1)<<A_bits)))<<std::endl;
-		// std::cout << "6:" << std::bitset<64> ((v  << A_bits) + (a.get_modulus(0)-((Berr-1)<<A_bits)))<<std::endl;
-		v = ((v  << A_bits) );//+ (a.get_modulus(0)-((Berr-1)<<A_bits)));
-		if(v>a.get_modulus(0)) {
-			//std::cout << "BIGV v=" << std::hex << v << " > modulus "<<std::hex << a.get_modulus(0)<<" so v=v-a.get_modulus(0)="<<std::hex << a.get_modulus(0)-v<<std::endl;
-			v=a.get_modulus(0)-v;
-		}
+		v = ((v  << A_bits) );
+		if(v>a.get_modulus(0)) v=a.get_modulus(0)-v;
 	}
-	//std::cout << " e=nfl::non_uniform( Berr=" << Berr <<" , Abits="<< A_bits<<") = "<< std::endl<<e<<std::endl;
-	//b.ntt_pow_phi();
-	//a = nfl::uniform();	
-	// std::cout << " a=nfl::uniform() = "<< std::endl<<a<<std::endl;
-// 	b = nfl::shoup(a * s, sprime);
-// 	std::cout << " s = "<< std::endl<<s<<std::endl;
-// 	std::cout << " a*s = "<< std::endl<<b<<std::endl;
-// 	b = nfl::shoup(a * s, sprime) + e ;
-// 	std::cout << " a*s +e = "<< std::endl<<b<<std::endl;
-	b = nfl::shoup(a * s, sprime) + e + message;
-	// std::cout << " msg = "<< std::endl<<message<<std::endl;
-	// std::cout << " a*s +e +msg= "<< std::endl<<b<<std::endl;
-	
-	//P tmp = nfl::shoup(a * s, sprime);
-	// std::cout << " a*s = "<< std::endl<<tmp<<std::endl;
-	//tmp = b - tmp;
-	// std::cout << " b - a*s = "<< std::endl<<tmp<<std::endl;
-	//for(auto & v : tmp) v = v & bitmask;
-	// std::cout << " (b - a*s) & bitmask = "<< std::endl<<tmp<<std::endl;
-	
-	
+	e = e + message;
+	e.ntt_pow_phi();
+	b = nfl::shoup(a * s, sprime) + e;
 }
 
 template <class P, class Q>
@@ -70,6 +44,7 @@ __attribute__((noinline)) static void encryptNFL(P& a, P& b, Q const & message, 
 {
 	P tmp;
 	plonge(tmp,message);
+	//tmp.ntt_pow_phi();
 	encryptNFL(a,b,tmp,s,sprime,g_prng);
 }
 
@@ -79,7 +54,7 @@ template <class P>
 		// m = b - a.s -e.Amp
 		// const uint64_t magicConst = (1ULL<<(s.nbits+1))-a.get_modulus(0);
 		tmp = (b - nfl::shoup(a * s, sprime));// % a.get_modulus(0);
-		//tmp.invntt_pow_invphi();
+		tmp.invntt_pow_invphi();
 		for(auto & v : tmp)
 		{
 			//v = (v>a.get_modulus(0)/2) ? ((v + magicConst) & bitmask) : (v & bitmask);
@@ -93,6 +68,7 @@ template <class P, class Q>
 	{
 		P tmp;
 		decryptNFL(tmp,a,b,s,sprime);
+		//tmp.invntt_pow_invphi();
 		plonge(res,tmp);
 	}
 	
@@ -111,7 +87,7 @@ template <class P, class Q>
 		double nbsum=ciph.degree;
 		double p_size=ciph.aggregated_modulus_bit_size;
 		double nbmul=ciph.degree;
-		double nbr_bits=floor(( (p_size - 1) - log2(nbsum) - log2(Berr) -log2(nbmul)) / 2.0);
+		double nbr_bits=floor(( (p_size - 1) - log2(nbsum) - log2(2*Berr-1) -log2(nbmul)) / 2.0);
 		std::cout << "Berr " << Berr << " nbsums "<<nbsum<< " p_size "<<p_size<<" nmul "<< nbmul << " nbr_bits " << nbr_bits<<std::endl;
 		std::cout << "Modulus (ciph/clear) : " << ciph.get_modulus(0)<< " / " << clear.get_modulus(0)<<std::endl;
 		std::cout << "Bitmasks (plain/anti) : " << bitmask<< " / " << antibitmask <<std::endl;
@@ -156,11 +132,11 @@ bool run() {
 	std::cout << "Test dec(enc(p)enc(p)) : " << ((testFHEAdd) ? " OK" : " KO") << std::endl;
 	
 	// Test HFE mul
-	p={1,2,3};
+	p={1,2,3};//p.ntt_pow_phi();
     encryptNFL(ca, cb, p, s, sprime, &g_prng);
-	// for (int i=0;i<degree-1;i++) {ea(0,i)=ca(0,i)*ca(0,i);eb(0,i)=cb(0,i)*cb(0,i);}
-	ea = ca * ca ;
-	eb = cb * cb;
+	 for (int i=0;i<degree-1;i++) {ea(0,i)=ca(0,i)*ca(0,i);eb(0,i)=cb(0,i)*cb(0,i);}
+	// ea = ca * ca ;
+	// eb = cb * cb;
     decryptNFL(result, ea, eb, s, sprime);
 	std::cout << "dec(enc(p2*p2)=" << result << std::endl;
 	clearpoly real_p2{1,4,10,12,9};
