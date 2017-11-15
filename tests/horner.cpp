@@ -124,13 +124,16 @@ bool run() {
 	std::cout << "Test dec(enc(p)enc(p)) : " << ((testFHEAdd) ? " OK" : " KO") << std::endl;
 	
 	// Test HFE mul
+	p={1,2,3};
     encryptNFL(ca, cb, p, s, sprime, &g_prng);
 	// for (int i=0;i<degree-1;i++) {ea(0,i)=ca(0,i)*ca(0,i);eb(0,i)=cb(0,i)*cb(0,i);}
 	ea = ca * ca ;
 	eb = cb * cb;
     decryptNFL(result, ea, eb, s, sprime);
 	std::cout << "dec(enc(p2*p2)=" << result << std::endl;
-	
+	clearpoly real_p2{1,4,10,12,9};
+	bool testFHEMul = true; for (int i=0;i<degree-1;i++) testFHEMul &= (result(0,i)==real_p2(0,i));
+	std::cout << "Test dec(enc(p))==p : " << ((testFHEMul) ? " OK" : " KO") << std::endl;
 	
 	//
 	// uint64_t px0=3,accumul=1;
