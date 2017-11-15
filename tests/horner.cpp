@@ -1,4 +1,4 @@
-#define CONFIG 512, 16, uint16_t, 62, uint64_t
+#define CONFIG 1024, 16, uint16_t, 62, uint64_t
 
 #include <iostream>
 #include "nfl/prng/FastGaussianNoise.hpp"
@@ -37,6 +37,14 @@ __attribute__((noinline)) static void encryptNFL(P& a, P& b, P const & message, 
 	b = b + nfl::shoup(a * s, sprime);
 }
 
+template <class P, class Q>
+__attribute__((noinline)) static void encryptNFL(P& a, P& b, Q const & message, P const & s, P const & sprime, nfl::FastGaussianNoise<uint16_t, typename P::value_type, 2> *g_prng)
+{
+	P tmp;
+	plonge(tmp,message);
+	encryptNFL(a,b,tmp,s,sprime,g_prng);
+}
+
 template <class P>
 	__attribute__((noinline)) static void decryptNFL(P& tmp, P const & a, P const& b, P const& s, P const& sprime)
 	{
@@ -45,8 +53,26 @@ template <class P>
 		tmp.invntt_pow_invphi();
 		for(auto & v : tmp)
 		{
-			v = (v>a.get_modulus(0)/2) ? ((v + magicConst) & bitmask) : (v & bitmask);
+			//v = (v>a.get_modulus(0)/2) ? ((v + magicConst) & bitmask) : (v & bitmask);
+			v = (v % a.get_modulus(0))& bitmask;
 		}
+	}
+	
+template <class P, class Q>
+	__attribute__((noinline)) static void decryptNFL(Q& res, P const & a, P const& b, P const& s, P const& sprime)
+	{
+		P tmp;
+		decryptNFL(tmp,a,b,s,sprime);
+		plonge(res,tmp);
+	}
+	
+template <class P>
+	__attribute__((noinline)) static void keyGenNFL(P& s, P& sprime, nfl::FastGaussianNoise<uint16_t, typename P::value_type, 2> *g_prng )
+	{
+		s = *alloc_aligned<poly, 32>(1, nfl::gaussian<uint16_t, typename P::value_type, 2>(g_prng));
+		sprime = *alloc_aligned<poly, 32>(1);
+		s.ntt_pow_phi();
+		sprime = nfl::compute_shoup(s);
 	}
 
 template <size_t degree, size_t modulus_clear, class T_clear, size_t modulus_cipher, class T_cipher>
@@ -65,8 +91,10 @@ bool run() {
 	assert(px0==34);
 	
 	/******************* En chiffré maintenant *****************************/
+	poly s, sprime;
+	clearpoly clearres;
+	poly p2, ca, cb, da,db,ea,eb, res;
 	
-	//   b = (a*s) % f + e * A + m;
 	double nbsum=p.degree;
 	double p_size=62;
 	double nbmul=p.degree;
@@ -76,45 +104,57 @@ bool run() {
 
 	// This step generates a secret key
 	nfl::FastGaussianNoise<T_clear, T_cipher, 2> g_prng(SIGMA, 128, 1<<10);
-	poly &s = *alloc_aligned<poly, 32>(1, Gauss(&g_prng)), 
-	     &sprime = *alloc_aligned<poly, 32>(1);
-	s.ntt_pow_phi();
-	sprime = nfl::compute_shoup(s);
+	keyGenNFL(s,sprime,&g_prng);
 	
-	clearpoly clearres;
-	poly p2, ca, cb, da,db,ea,eb, res;
-	
-	plonge(p2,p);
-    encryptNFL(ca, cb, p2, s, sprime, &g_prng);
-    decryptNFL(res, ca, cb, s, sprime);
-	plonge(clearres,res);
-	
+	// Test enc/dec
+	//plonge(p2,p);
+    encryptNFL(ca, cb, p, s, sprime, &g_prng);
+    decryptNFL(clearres, ca, cb, s, sprime);
+	//plonge(clearres,res);
 	std::cout << "p2" << p << std::endl;
 	std::cout << "sym dec(enc(p)=" << clearres << std::endl;
 	
- //    encryptNFL(ca, cb, p2, s, sprime, &g_prng);
-//     encryptNFL(da, db, p2, s, sprime, &g_prng);
-// 	ea = ca * da ; eb = cb * db;
-//     decryptNFL(res, ea, eb, s, sprime, res.get_modulus(0),14);
-// 	std::cout << "dec(enc(p2+p2)=" << clearres << std::endl;
-//
-// 	uint64_t px0=3,accumul=1;
-// 	poly ra;
-// 	poly rb;
-// 	for(int i=0;i<degree;i=i+1) {
-//  		ra(0,i)=accumul*ca(0,i);
-//  		rb(0,i)=accumul*cb(0,i);
-// 		accumul=accumul*px0;
-//  	}
-// 	// ra = ra*px0+ca;
-// // 	rb = rb*px0+cb;
-//
-// 	 decryptNFL(res, ra, rb, s, sprime, res.get_modulus(0),14);
-// 	uint64_t resultat=0;
-// 	for(auto & v : res) resultat += v;
-//
-// 	std::cout << "dec(enc(p2)=" << res << std::endl;
-// 	std::cout << "p(x0)="<<(resultat )<< std::endl;
+	// Test HFE add
+	plonge(p2,p);
+    encryptNFL(ca, cb, p2, s, sprime, &g_prng);
+	ea = ca + ca ; 
+	eb = cb + cb;
+    decryptNFL(res, ea, eb, s, sprime);
+	plonge(clearres,res);
+	std::cout << "dec(enc(p2+p2)=" << clearres << std::endl;
+	
+	// Test HFE mul
+	plonge(p2,p);
+	//p2.ntt_pow_phi();
+    encryptNFL(ca, cb, p2, s, sprime, &g_prng);
+	//ca.ntt_pow_phi();cb.ntt_pow_phi();
+	ea = ca * ca ; 
+	eb = cb * cb;
+	//ea.invntt_pow_invphi();eb.invntt_pow_invphi();
+    decryptNFL(res, ea, eb, s, sprime);
+	plonge(clearres,res);
+	//clearres.invntt_pow_invphi();
+	std::cout << "dec(enc(p2*p2)=" << clearres << std::endl;
+	
+	
+	//
+	// uint64_t px0=3,accumul=1;
+	// poly ra;
+	// poly rb;
+	// for(int i=0;i<degree;i=i+1) {
+	//  		ra(0,i)=accumul*ca(0,i);
+	//  		rb(0,i)=accumul*cb(0,i);
+	// 	accumul=accumul*px0;
+	//  	}
+	// ra = ra*px0+ca;
+// 	rb = rb*px0+cb;
+
+	//  decryptNFL(res, ra, rb, s, sprime);
+	// uint64_t resultat=0;
+	// for(auto & v : res) resultat += v;
+	//
+	// std::cout << "dec(enc(p2)=" << res << std::endl;
+	// std::cout << "p(x0)="<<(resultat )<< std::endl;
 //
 // 	//T_clear x0=3;
 //

@@ -4,7 +4,7 @@ set(CONFIGS
     #"1024, 60, uint32_t"
     #"8192, 124, uint64_t"
     #"1048576, 124, uint64_t"
-    "512, 62, uint64_t"
+    "1024, 62, uint64_t"
 )
 
 #always double check during tests
