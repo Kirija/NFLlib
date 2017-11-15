@@ -1,4 +1,4 @@
-#define CONFIG 512, 16, uint16_t, 62, uint64_t
+#define CONFIG 1024, 16, uint16_t, 62, uint64_t
 
 #include <iostream>
 #include "nfl/prng/FastGaussianNoise.hpp"
@@ -9,8 +9,8 @@
 #define A_bits 17	// AbsBitPerCipher / polyDegree
 const uint64_t bitmask = (1ULL << A_bits)-1; 	
 
-typedef  nfl::poly_from_modulus<uint64_t, 512, 62> poly;
-typedef  nfl::poly_from_modulus<uint16_t, 512, 16> clearpoly;
+typedef  nfl::poly_from_modulus<uint64_t, 1024, 62> poly;
+typedef  nfl::poly_from_modulus<uint16_t, 1024, 16> clearpoly;
 
 template <class P, class Q>
 static void plonge(P& out, Q& in) {
@@ -25,15 +25,14 @@ template <class P>
 __attribute__((noinline)) static void encryptNFL(P& a, P& b, P const & message, P const & s, P const & sprime, nfl::FastGaussianNoise<uint16_t, typename P::value_type, 2> *g_prng)
 {
 	//   b = (a*s) % f + e * A + m;
-	b = nfl::non_uniform(Berr);
-	// Adjustments and addition to plaintext
-	for(int i=0;i<b.degree;i++) {
-		b(0,i) = (( b(0,i) << (A_bits+1) ) + message(0,i));
-		if(b(0,i)>b.get_modulus(0)) b(0,i)-=b.get_modulus(0);
-	}	
-	b.ntt_pow_phi();
+	// uint64_t amplifier = (1ULL << A_bits);
+	b = nfl::non_uniform(Berr, A_bits );
+	//for (auto & v : b) v = v << (A_bits) ;
+	//b = b + message;
+	//for (auto & v : b) if(v > b.get_modulus(0)) v = v - b.get_modulus(0);
+	//b.ntt_pow_phi();
 	a = nfl::uniform();	
-	b = b + nfl::shoup(a * s, sprime);
+	b = nfl::shoup(a * s, sprime) + b + message;
 }
 
 template <class P, class Q>
@@ -49,7 +48,7 @@ template <class P>
 	{
 		const uint64_t magicConst = (1ULL<<(s.nbits+1))-a.get_modulus(0);
 		tmp = b - nfl::shoup(a * s, sprime);
-		tmp.invntt_pow_invphi();
+		//tmp.invntt_pow_invphi();
 		for(auto & v : tmp)
 		{
 			//v = (v>a.get_modulus(0)/2) ? ((v + magicConst) & bitmask) : (v & bitmask);

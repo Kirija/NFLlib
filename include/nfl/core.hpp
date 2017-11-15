@@ -299,7 +299,7 @@ void poly<T, Degree, NbModuli>::set(gaussian<in_class, T, _lu_depth> const& mode
   // Get some randomness from the PRNG
   mode.fg_prng->getNoise((value_type *)rnd, degree);
 
-  if (amplifier != 1) for (unsigned int i = 0; i < degree; i++) rnd[i]*= amplifier;
+  if (amplifier != 1) for (unsigned int i = 0; i < degree; i++) rnd[i] = rnd[i] << amplifier;
   for (size_t cm = 0; cm < nmoduli; cm++) 
   {
     for (size_t i = 0 ; i < degree; i++)
