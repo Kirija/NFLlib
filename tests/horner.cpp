@@ -92,8 +92,8 @@ bool run() {
 	
 	/******************* En chiffré maintenant *****************************/
 	poly s, sprime;
-	clearpoly clearres;
-	poly p2, ca, cb, da,db,ea,eb, res;
+	clearpoly result;
+	poly ca, cb, da, db, ea, eb, res;
 	
 	double nbsum=p.degree;
 	double p_size=62;
@@ -106,35 +106,24 @@ bool run() {
 	nfl::FastGaussianNoise<T_clear, T_cipher, 2> g_prng(SIGMA, 128, 1<<10);
 	keyGenNFL(s,sprime,&g_prng);
 	
-	// Test enc/dec
-	//plonge(p2,p);
+	// Test enc/dec result=Dec(Enc(p));
     encryptNFL(ca, cb, p, s, sprime, &g_prng);
-    decryptNFL(clearres, ca, cb, s, sprime);
-	//plonge(clearres,res);
+    decryptNFL(result, ca, cb, s, sprime);
 	std::cout << "p2" << p << std::endl;
-	std::cout << "sym dec(enc(p)=" << clearres << std::endl;
+	std::cout << "sym dec(enc(p)=" << result << std::endl;
 	
-	// Test HFE add
-	plonge(p2,p);
-    encryptNFL(ca, cb, p2, s, sprime, &g_prng);
-	ea = ca + ca ; 
-	eb = cb + cb;
-    decryptNFL(res, ea, eb, s, sprime);
-	plonge(clearres,res);
-	std::cout << "dec(enc(p2+p2)=" << clearres << std::endl;
+	// Test HFE add result=Dec(Enc(p)+Enc(p))
+    encryptNFL(ca, cb, p, s, sprime, &g_prng);
+	ea = ca + ca ; eb = cb + cb;
+    decryptNFL(result, ea, eb, s, sprime);
+	std::cout << "dec(enc(p2+p2)=" << result << std::endl;
 	
 	// Test HFE mul
-	plonge(p2,p);
-	//p2.ntt_pow_phi();
-    encryptNFL(ca, cb, p2, s, sprime, &g_prng);
-	//ca.ntt_pow_phi();cb.ntt_pow_phi();
+    encryptNFL(ca, cb, p, s, sprime, &g_prng);
 	ea = ca * ca ; 
 	eb = cb * cb;
-	//ea.invntt_pow_invphi();eb.invntt_pow_invphi();
-    decryptNFL(res, ea, eb, s, sprime);
-	plonge(clearres,res);
-	//clearres.invntt_pow_invphi();
-	std::cout << "dec(enc(p2*p2)=" << clearres << std::endl;
+    decryptNFL(result, ea, eb, s, sprime);
+	std::cout << "dec(enc(p2*p2)=" << result << std::endl;
 	
 	
 	//
